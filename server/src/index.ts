@@ -16,16 +16,25 @@
 // });
 
 
+// ***************************8
+
+
+// import app from './app.js';
+// import { ENV } from './config/env.js';
+// import { connectDB } from './config/db.js';
+
+// const startServer = async () => {
+//   await connectDB();
+// };
+
+// startServer().catch((err) => {
+//   console.error('[Server] Failed to connect to database:', err);
+// });
+
+// export default app;
+
+// *************************************
+
 import app from './app.js';
-import { ENV } from './config/env.js';
-import { connectDB } from './config/db.js';
-
-const startServer = async () => {
-  await connectDB();
-};
-
-startServer().catch((err) => {
-  console.error('[Server] Failed to connect to database:', err);
-});
 
 export default app;
