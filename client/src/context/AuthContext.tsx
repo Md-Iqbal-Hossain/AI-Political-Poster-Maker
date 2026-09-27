@@ -14,6 +14,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
 }
@@ -75,6 +76,27 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  const register = async (name: string, email: string, password: string): Promise<void> => {
+    const res = await fetch(`${API_BASE_URL}/auth/register`, {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ name, email, password }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok || !data.success) {
+      throw new Error(data.message || "Registration failed");
+    }
+
+    if (data.user) {
+      setUser(data.user);
+    }
+  };
+
   const logout = async (): Promise<void> => {
     try {
       await fetch(`${API_BASE_URL}/auth/logout`, {
@@ -94,6 +116,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         user,
         loading,
         login,
+        register,
         logout,
         checkAuth,
       }}

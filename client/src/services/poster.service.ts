@@ -19,6 +19,7 @@ export interface GeneratePosterRequest {
   party: string;
   location: string;
   photoUrl?: string;
+  photoUrls?: string[];
 }
 
 export interface PosterResponseData {
@@ -52,6 +53,35 @@ export const fetchTemplates = async (): Promise<TemplateItem[]> => {
   }
 
   return data.templates || [];
+};
+
+export interface UploadedImageItem {
+  secureUrl: string;
+  publicId: string;
+}
+
+/**
+ * Uploads multiple image files to Express backend /uploads/image endpoint.
+ */
+export const uploadImages = async (files: File[]): Promise<UploadedImageItem[]> => {
+  const formData = new FormData();
+  files.forEach((file) => {
+    formData.append('images', file);
+  });
+
+  const response = await fetch(`${API_BASE_URL}/uploads/image`, {
+    method: 'POST',
+    credentials: 'include',
+    body: formData,
+  });
+
+  const data = await response.json();
+
+  if (!response.ok || !data.success) {
+    throw new Error(data.message || 'Failed to upload images');
+  }
+
+  return data.images || [];
 };
 
 /**

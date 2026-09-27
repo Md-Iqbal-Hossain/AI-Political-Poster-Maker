@@ -249,6 +249,15 @@ async function runPosterRegenerateApiTest() {
       throw new Error('Regenerated poster owner does not match authenticated user!');
     }
 
+    if (!Array.isArray(newRegeneratedPoster.originalImageUrls) || newRegeneratedPoster.originalImageUrls.length !== 1 || newRegeneratedPoster.originalImageUrls[0] !== 'https://cloudinary.com/original.jpg') {
+      throw new Error(`Expected regenerated poster originalImageUrls to contain ['https://cloudinary.com/original.jpg'], got ${JSON.stringify(newRegeneratedPoster.originalImageUrls)}`);
+    }
+
+    if (newRegeneratedPoster.originalImageUrl !== 'https://cloudinary.com/original.jpg') {
+      throw new Error(`Expected regenerated poster originalImageUrl to be 'https://cloudinary.com/original.jpg', got ${newRegeneratedPoster.originalImageUrl}`);
+    }
+    console.log('✓ Backward compatibility check passed: Legacy poster with originalImageUrl regenerated successfully preserving image URLs.');
+
     console.log('\nAll Poster Regeneration API endpoint tests passed successfully!');
   } catch (error: any) {
     console.error('Regeneration API Test failed:', error?.message || error);

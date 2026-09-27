@@ -368,6 +368,126 @@ async function runPosterApiTest() {
 
     console.log('✓ photoUrl validation checks passed for http, https, omitted, invalid, and unsupported protocols.');
 
+    // TEST 12: photoUrls Array Validation & Database Storage (Step 2B)
+    console.log('\n--- 12. Testing photoUrls Array Validation & Database Storage ---');
+
+    // 12a. Empty array -> 201
+    const resEmptyArray = await request(app)
+      .post('/api/posters/generate')
+      .set('Authorization', `Bearer ${validToken}`)
+      .send({ ...validPayload, photoUrls: [] });
+    console.log('Empty photoUrls array Status Code:', resEmptyArray.status);
+    if (resEmptyArray.status !== 201 || !resEmptyArray.body.success) {
+      throw new Error('Empty photoUrls array was rejected!');
+    }
+
+    // 12b. 1 photoUrls item -> 201
+    const resOnePhoto = await request(app)
+      .post('/api/posters/generate')
+      .set('Authorization', `Bearer ${validToken}`)
+      .send({ ...validPayload, photoUrls: ['https://placehold.co/400x400.png?1'] });
+    console.log('1 item photoUrls array Status Code:', resOnePhoto.status);
+    if (resOnePhoto.status !== 201 || !resOnePhoto.body.success) {
+      throw new Error('1 item photoUrls array was rejected!');
+    }
+
+    // 12c. 2 photoUrls items -> 201
+    const resTwoPhotos = await request(app)
+      .post('/api/posters/generate')
+      .set('Authorization', `Bearer ${validToken}`)
+      .send({
+        ...validPayload,
+        photoUrls: ['https://placehold.co/400x400.png?1', 'https://placehold.co/400x400.png?2'],
+      });
+    console.log('2 items photoUrls array Status Code:', resTwoPhotos.status);
+    if (resTwoPhotos.status !== 201 || !resTwoPhotos.body.success) {
+      throw new Error('2 items photoUrls array was rejected!');
+    }
+
+    // 12d & 12e. 3 photoUrls items -> 201 & DB verification
+    const threeUrls = [
+      'https://placehold.co/400x400.png?photo=1',
+      'https://placehold.co/400x400.png?photo=2',
+      'https://placehold.co/400x400.png?photo=3',
+    ];
+    const resThreePhotos = await request(app)
+      .post('/api/posters/generate')
+      .set('Authorization', `Bearer ${validToken}`)
+      .send({
+        ...validPayload,
+        photoUrls: threeUrls,
+      });
+
+    console.log('3 items photoUrls array Status Code:', resThreePhotos.status);
+    if (resThreePhotos.status !== 201 || !resThreePhotos.body.success) {
+      throw new Error('3 items photoUrls array was rejected!');
+    }
+
+    // DB Verification for 3-photo poster
+    const poster3 = await Poster.findById(resThreePhotos.body.data.posterId);
+    if (!poster3) {
+      throw new Error('3-photo poster document not found in MongoDB!');
+    }
+
+    if (!Array.isArray(poster3.originalImageUrls) || poster3.originalImageUrls.length !== 3) {
+      throw new Error(`Expected originalImageUrls to contain 3 items, got ${poster3.originalImageUrls?.length}`);
+    }
+
+    if (poster3.originalImageUrl !== threeUrls[0]) {
+      throw new Error(`Expected originalImageUrl to equal first URL (${threeUrls[0]}), got ${poster3.originalImageUrl}`);
+    }
+    console.log('✓ DB verification passed: originalImageUrls has 3 items and originalImageUrl equals first URL.');
+
+    // 12f. 4 photoUrls items (>3 limit) -> 400
+    const resFourPhotos = await request(app)
+      .post('/api/posters/generate')
+      .set('Authorization', `Bearer ${validToken}`)
+      .send({
+        ...validPayload,
+        photoUrls: [
+          'https://placehold.co/400.png?1',
+          'https://placehold.co/400.png?2',
+          'https://placehold.co/400.png?3',
+          'https://placehold.co/400.png?4',
+        ],
+      });
+    console.log('4 items photoUrls array Status Code:', resFourPhotos.status);
+    if (resFourPhotos.status !== 400 || resFourPhotos.body.success !== false) {
+      throw new Error('4 item photoUrls array was not rejected with 400!');
+    }
+
+    // 12g. Invalid URL ("not-a-url") -> 400
+    const resInvalidArrayUrl = await request(app)
+      .post('/api/posters/generate')
+      .set('Authorization', `Bearer ${validToken}`)
+      .send({ ...validPayload, photoUrls: ['not-a-url'] });
+    console.log('Invalid URL in photoUrls Status Code:', resInvalidArrayUrl.status);
+    if (resInvalidArrayUrl.status !== 400 || resInvalidArrayUrl.body.success !== false) {
+      throw new Error('Invalid URL in photoUrls array was not rejected with 400!');
+    }
+
+    // 12h. javascript: protocol -> 400
+    const resJsArrayUrl = await request(app)
+      .post('/api/posters/generate')
+      .set('Authorization', `Bearer ${validToken}`)
+      .send({ ...validPayload, photoUrls: ['javascript:alert(1)'] });
+    console.log('javascript: URL in photoUrls Status Code:', resJsArrayUrl.status);
+    if (resJsArrayUrl.status !== 400 || resJsArrayUrl.body.success !== false) {
+      throw new Error('javascript: URL in photoUrls array was not rejected with 400!');
+    }
+
+    // 12i. ftp:// protocol -> 400
+    const resFtpArrayUrl = await request(app)
+      .post('/api/posters/generate')
+      .set('Authorization', `Bearer ${validToken}`)
+      .send({ ...validPayload, photoUrls: ['ftp://example.com/photo.jpg'] });
+    console.log('ftp:// URL in photoUrls Status Code:', resFtpArrayUrl.status);
+    if (resFtpArrayUrl.status !== 400 || resFtpArrayUrl.body.success !== false) {
+      throw new Error('ftp:// URL in photoUrls array was not rejected with 400!');
+    }
+
+    console.log('✓ All Step 2B photoUrls array validation & DB verification checks passed!');
+
     console.log('\nAll Poster API endpoint validation & security tests passed successfully!');
   } catch (error: any) {
     console.error('API Test failed:', error?.message || error);

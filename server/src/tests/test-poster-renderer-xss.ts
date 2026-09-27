@@ -103,6 +103,70 @@ async function runPosterRendererXssTest() {
     }
     console.log('✓ renderPosterToBuffer successfully generated clean PNG image buffer.');
 
+    // 5. Multi-Photo Rendering Test (0, 1, 2, 3 photos)
+    console.log('\n--- 5. Testing Multi-Photo HTML & PNG Rendering (0, 1, 2, 3 photos) ---');
+
+    // 5a. 0 Photos
+    const html0 = generatePosterHtml({ ...banglaData, photoUrl: undefined, photoUrls: [] });
+    if (!html0.includes('single-photo') || !html0.includes('placeholder-avatar')) {
+      throw new Error('0 photo layout HTML generation failed!');
+    }
+    const buf0 = await renderPosterToBuffer({ ...banglaData, photoUrl: undefined, photoUrls: [] });
+    if (!buf0 || buf0.length < 5000) throw new Error('0 photo PNG buffer rendering failed!');
+    console.log('✓ 0 photos rendered successfully to PNG buffer (size:', buf0.length, 'bytes).');
+
+    // 5b. 1 Photo
+    const html1 = generatePosterHtml({ ...banglaData, photoUrls: ['https://placehold.co/400x400.png?1'] });
+    if (!html1.includes('single-photo') || !html1.includes('https://placehold.co/400x400.png?1')) {
+      throw new Error('1 photo layout HTML generation failed!');
+    }
+    const buf1 = await renderPosterToBuffer({ ...banglaData, photoUrls: ['https://placehold.co/400x400.png?1'] });
+    if (!buf1 || buf1.length < 5000) throw new Error('1 photo PNG buffer rendering failed!');
+    console.log('✓ 1 photo rendered successfully to PNG buffer (size:', buf1.length, 'bytes).');
+
+    // 5c. 2 Photos
+    const html2 = generatePosterHtml({
+      ...banglaData,
+      photoUrls: ['https://placehold.co/400x400.png?1', 'https://placehold.co/400x400.png?2'],
+    });
+    if (!html2.includes('two-photos') || !html2.includes('https://placehold.co/400x400.png?1') || !html2.includes('https://placehold.co/400x400.png?2')) {
+      throw new Error('2 photo layout HTML generation failed!');
+    }
+    const buf2 = await renderPosterToBuffer({
+      ...banglaData,
+      photoUrls: ['https://placehold.co/400x400.png?1', 'https://placehold.co/400x400.png?2'],
+    });
+    if (!buf2 || buf2.length < 5000) throw new Error('2 photo PNG buffer rendering failed!');
+    console.log('✓ 2 photos rendered successfully side-by-side to PNG buffer (size:', buf2.length, 'bytes).');
+
+    // 5d. 3 Photos
+    const html3 = generatePosterHtml({
+      ...banglaData,
+      photoUrls: [
+        'https://placehold.co/400x400.png?1',
+        'https://placehold.co/400x400.png?2',
+        'https://placehold.co/400x400.png?3',
+      ],
+    });
+    if (
+      !html3.includes('three-photos') ||
+      !html3.includes('https://placehold.co/400x400.png?1') ||
+      !html3.includes('https://placehold.co/400x400.png?2') ||
+      !html3.includes('https://placehold.co/400x400.png?3')
+    ) {
+      throw new Error('3 photo layout HTML generation failed!');
+    }
+    const buf3 = await renderPosterToBuffer({
+      ...banglaData,
+      photoUrls: [
+        'https://placehold.co/400x400.png?1',
+        'https://placehold.co/400x400.png?2',
+        'https://placehold.co/400x400.png?3',
+      ],
+    });
+    if (!buf3 || buf3.length < 5000) throw new Error('3 photo PNG buffer rendering failed!');
+    console.log('✓ 3 photos rendered successfully side-by-side to PNG buffer (size:', buf3.length, 'bytes).');
+
     console.log('\nAll Poster Renderer HTML/XSS Safety & Bangla Rendering tests passed successfully!');
   } catch (error: any) {
     console.error('Renderer Test failed:', error?.message || error);

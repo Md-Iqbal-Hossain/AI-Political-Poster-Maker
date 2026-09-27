@@ -5,12 +5,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../../hooks/useAuth";
 
-export default function LoginPage() {
+export default function RegisterPage() {
   const router = useRouter();
-  const { login } = useAuth();
+  const { register } = useAuth();
 
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -18,21 +20,32 @@ export default function LoginPage() {
     e.preventDefault();
     setError(null);
 
-    if (!email.trim()) {
+    const trimmedName = name.trim();
+    const trimmedEmail = email.trim();
+
+    if (!trimmedName) {
+      setError("Name is required.");
+      return;
+    }
+    if (!trimmedEmail) {
       setError("Email address is required.");
       return;
     }
-    if (!password) {
-      setError("Password is required.");
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters.");
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
       return;
     }
 
     try {
       setIsSubmitting(true);
-      await login(email.trim(), password);
+      await register(trimmedName, trimmedEmail, password);
       router.push("/generate");
     } catch (err: any) {
-      setError(err?.message || "Invalid email or password.");
+      setError(err?.message || "Registration failed. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -47,18 +60,33 @@ export default function LoginPage() {
             AI Poster Maker
           </span>
           <h1 className="text-2xl sm:text-3xl font-bold text-zinc-900 dark:text-zinc-50 tracking-tight">
-            Sign in to your account
+            Create an account
           </h1>
           <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-400">
-            Enter your credentials to access the AI poster generation studio
+            Sign up to start creating automated political posters with AI
           </p>
         </div>
 
-        {/* Login Form Card */}
+        {/* Register Form Card */}
         <form
           onSubmit={handleSubmit}
           className="bg-white dark:bg-zinc-900 p-6 sm:p-8 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-5"
         >
+          {/* Full Name */}
+          <div className="space-y-1.5">
+            <label className="block text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+              Full Name <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="John Doe"
+              className="w-full px-4 py-2.5 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm"
+              required
+            />
+          </div>
+
           {/* Email */}
           <div className="space-y-1.5">
             <label className="block text-sm font-semibold text-zinc-900 dark:text-zinc-100">
@@ -83,6 +111,21 @@ export default function LoginPage() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              className="w-full px-4 py-2.5 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm"
+              required
+            />
+          </div>
+
+          {/* Confirm Password */}
+          <div className="space-y-1.5">
+            <label className="block text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+              Confirm Password <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="••••••••"
               className="w-full px-4 py-2.5 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm"
               required
@@ -123,22 +166,22 @@ export default function LoginPage() {
                     d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                   ></path>
                 </svg>
-                <span>Signing in...</span>
+                <span>Creating account...</span>
               </>
             ) : (
-              <span>Sign In</span>
+              <span>Register</span>
             )}
           </button>
         </form>
 
         {/* Footer Link */}
         <p className="text-center text-xs text-zinc-500 dark:text-zinc-400">
-          Don't have an account?{" "}
+          Already have an account?{" "}
           <Link
-            href="/register"
+            href="/login"
             className="font-semibold text-emerald-600 hover:text-emerald-500 dark:text-emerald-400 dark:hover:text-emerald-300 transition-colors"
           >
-            Sign up
+            Login
           </Link>
         </p>
       </div>

@@ -20,6 +20,8 @@ export interface CreatePosterInput {
   party: string;
   location: string;
   photoUrl?: string;
+  photoUrls?: string[];
+  regenerationCount?: number;
 }
 
 export interface CreatePosterResult {
@@ -42,6 +44,15 @@ export interface CreatePosterResult {
 export const createPoster = async (
   input: CreatePosterInput
 ): Promise<CreatePosterResult> => {
+  // Normalize photo URLs safely (supporting legacy photoUrl string and new photoUrls array)
+  const normalizedPhotoUrls: string[] =
+    input.photoUrls && input.photoUrls.length > 0
+      ? input.photoUrls
+      : input.photoUrl
+      ? [input.photoUrl]
+      : [];
+  const firstPhotoUrl = normalizedPhotoUrls.length > 0 ? normalizedPhotoUrls[0] : undefined;
+
   // 1. Load requested Template from DB (must be active)
   const template = await Template.findOne({
     _id: input.templateId,
@@ -81,7 +92,8 @@ export const createPoster = async (
     designation: input.designation,
     party: input.party,
     location: input.location,
-    photoUrl: input.photoUrl,
+    photoUrl: firstPhotoUrl,
+    photoUrls: normalizedPhotoUrls,
     layoutConfig: {
       ...(template.layoutConfig || {}),
       ...layoutSuggestion,
@@ -106,10 +118,12 @@ export const createPoster = async (
     designation: input.designation,
     party: input.party,
     location: input.location,
-    originalImageUrl: input.photoUrl,
+    originalImageUrl: firstPhotoUrl,
+    originalImageUrls: normalizedPhotoUrls,
     generatedImageUrl: uploadResult.secureUrl,
     generatedImagePublicId: uploadResult.publicId,
     layout: layoutSuggestion,
+    regenerationCount: input.regenerationCount || 0,
   });
 
   return {

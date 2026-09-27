@@ -52,6 +52,19 @@ export const generatePosterSchema = z.object({
     )
     .optional()
     .or(z.literal('')),
+  photoUrls: z
+    .array(
+      z
+        .string()
+        .trim()
+        .url('Invalid photo URL format')
+        .refine(
+          (val) => val.startsWith('http://') || val.startsWith('https://'),
+          { message: 'Photo URL must use http or https protocol' }
+        )
+    )
+    .max(3, 'Maximum 3 photo URLs allowed')
+    .optional(),
 });
 
 export const getPostersQuerySchema = z.object({
@@ -104,6 +117,7 @@ export const generatePosterController = async (
       party,
       location,
       photoUrl,
+      photoUrls,
     } = parseResult.data;
 
     const result = await createPoster({
@@ -116,6 +130,7 @@ export const generatePosterController = async (
       party,
       location,
       photoUrl,
+      photoUrls,
     });
 
     res.status(201).json({
@@ -245,6 +260,27 @@ export const regeneratePosterController = async (
       return;
     }
 
+    // Check regeneration limit (Maximum 3 regenerations allowed)
+    const currentRegenCount = existingPoster.regenerationCount || 0;
+    if (currentRegenCount >= 3) {
+      res.status(429).json({
+        success: false,
+        message: 'Regeneration limit reached: Maximum 3 regenerations allowed per poster.',
+      });
+      return;
+    }
+
+    // Increment regeneration count on existing poster document
+    existingPoster.regenerationCount = currentRegenCount + 1;
+    await existingPoster.save();
+
+    // Normalize photos from existing document (supporting legacy single-image posters)
+    const photoUrls = existingPoster.originalImageUrls?.length
+      ? existingPoster.originalImageUrls
+      : existingPoster.originalImageUrl
+      ? [existingPoster.originalImageUrl]
+      : [];
+
     // Re-use original content & call createPoster to generate a NEW poster document
     const result = await createPoster({
       userId,
@@ -256,6 +292,8 @@ export const regeneratePosterController = async (
       party: existingPoster.party,
       location: existingPoster.location,
       photoUrl: existingPoster.originalImageUrl,
+      photoUrls,
+      regenerationCount: existingPoster.regenerationCount,
     });
 
     res.status(201).json({

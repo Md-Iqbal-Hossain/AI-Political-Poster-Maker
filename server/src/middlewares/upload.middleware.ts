@@ -20,10 +20,13 @@ const fileFilter = (
 const upload = multer({
   storage,
   limits: {
-    fileSize: 5 * 1024 * 1024, // 5 MB Limit
+    fileSize: 5 * 1024 * 1024, // 5 MB limit per file
   },
   fileFilter,
-}).single('image');
+}).fields([
+  { name: 'images', maxCount: 3 },
+  { name: 'image', maxCount: 1 },
+]);
 
 export const handleImageUpload = (req: Request, res: Response, next: NextFunction): void => {
   upload(req, res, (err: any) => {
@@ -32,6 +35,13 @@ export const handleImageUpload = (req: Request, res: Response, next: NextFunctio
         res.status(400).json({
           success: false,
           message: 'File size limit exceeded. Maximum allowed size is 5MB.',
+        });
+        return;
+      }
+      if (err.code === 'LIMIT_UNEXPECTED_FILE' || err.code === 'LIMIT_FILE_COUNT') {
+        res.status(400).json({
+          success: false,
+          message: 'Maximum 3 image files allowed.',
         });
         return;
       }

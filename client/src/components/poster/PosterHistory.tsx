@@ -282,23 +282,23 @@ export const PosterHistory: React.FC<PosterHistoryProps> = ({ limit = 6 }) => {
 
           {/* Pagination Controls */}
           {pagination.totalPages > 1 && (
-            <div className="bg-white dark:bg-zinc-900 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm flex items-center justify-between">
+            <div className="bg-white dark:bg-zinc-900 p-3 sm:p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm flex items-center justify-between gap-2">
               <button
                 onClick={handlePrevPage}
                 disabled={currentPage <= 1 || isLoading || regeneratingId !== null}
-                className="px-4 py-2 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-900 dark:text-zinc-100 text-xs font-semibold rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className="px-3 sm:px-4 py-2 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-900 dark:text-zinc-100 text-xs font-semibold rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
               >
                 Previous
               </button>
 
-              <span className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
-                Page {pagination.page} of {pagination.totalPages} (Total: {pagination.total})
+              <span className="text-[11px] sm:text-xs font-medium text-zinc-600 dark:text-zinc-400 text-center truncate">
+                Page {pagination.page} of {pagination.totalPages} <span className="hidden min-[400px]:inline">(Total: {pagination.total})</span>
               </span>
 
               <button
                 onClick={handleNextPage}
                 disabled={currentPage >= pagination.totalPages || isLoading || regeneratingId !== null}
-                className="px-4 py-2 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-900 dark:text-zinc-100 text-xs font-semibold rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className="px-3 sm:px-4 py-2 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-900 dark:text-zinc-100 text-xs font-semibold rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
               >
                 Next
               </button>

@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   TemplateItem,
   uploadImage,
+  uploadImages,
   generatePoster,
   PosterResponseData,
 } from "../../services/poster.service";
@@ -24,17 +25,62 @@ export const PosterForm: React.FC<PosterFormProps> = ({
   const [designation, setDesignation] = useState("");
   const [party, setParty] = useState("");
   const [location, setLocation] = useState("");
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [generatedResult, setGeneratedResult] = useState<PosterResponseData | null>(null);
 
+  const filePreviews = useMemo(() => {
+    return selectedFiles.map((file) => ({
+      file,
+      url: URL.createObjectURL(file),
+    }));
+  }, [selectedFiles]);
+
+  useEffect(() => {
+    return () => {
+      filePreviews.forEach((preview) => URL.revokeObjectURL(preview.url));
+    };
+  }, [filePreviews]);
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setSelectedFile(e.target.files[0]);
+    setError(null);
+    if (!e.target.files || e.target.files.length === 0) return;
+
+    const incomingFiles = Array.from(e.target.files);
+    const totalCount = selectedFiles.length + incomingFiles.length;
+
+    if (totalCount > 3) {
+      setError("Maximum 3 photos allowed. You cannot select more than 3 photos.");
+      e.target.value = "";
+      return;
     }
+
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
+    const maxSizeBytes = 5 * 1024 * 1024; // 5MB
+
+    for (const file of incomingFiles) {
+      if (!allowedTypes.includes(file.type)) {
+        setError(`Unsupported file type: ${file.name}. Only JPEG, PNG, and WEBP images are allowed.`);
+        e.target.value = "";
+        return;
+      }
+      if (file.size > maxSizeBytes) {
+        setError(`File size exceeds 5MB limit: ${file.name}. Please select smaller images.`);
+        e.target.value = "";
+        return;
+      }
+    }
+
+    setSelectedFiles((prev) => [...prev, ...incomingFiles]);
+    e.target.value = "";
+  };
+
+  const handleRemoveFile = (indexToRemove: number) => {
+    setSelectedFiles((prev) => prev.filter((_, index) => index !== indexToRemove));
+    setError(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -70,12 +116,15 @@ export const PosterForm: React.FC<PosterFormProps> = ({
 
     try {
       setIsSubmitting(true);
-      let photoUrl: string | undefined = undefined;
+      let photoUrls: string[] = [];
 
-      // 1. Optional Image Upload Step
-      if (selectedFile) {
-        setStatusMessage("Uploading leader photo...");
-        photoUrl = await uploadImage(selectedFile);
+      // 1. Optional Multi-Image Upload Step
+      if (selectedFiles.length > 0) {
+        setStatusMessage(
+          `Uploading ${selectedFiles.length} leader photo${selectedFiles.length > 1 ? "s" : ""}...`
+        );
+        const uploadedImages = await uploadImages(selectedFiles);
+        photoUrls = uploadedImages.map((img) => img.secureUrl);
       }
 
       // 2. Poster Generation Step
@@ -88,7 +137,7 @@ export const PosterForm: React.FC<PosterFormProps> = ({
         designation: designation.trim(),
         party: party.trim(),
         location: location.trim(),
-        photoUrl,
+        photoUrls,
       });
 
       setGeneratedResult(result);
@@ -105,7 +154,7 @@ export const PosterForm: React.FC<PosterFormProps> = ({
       {/* Form Container */}
       <form
         onSubmit={handleSubmit}
-        className="bg-white dark:bg-zinc-900 p-6 sm:p-8 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-6"
+        className="bg-white dark:bg-zinc-900 p-4 sm:p-8 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-6"
       >
         <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 border-b border-zinc-100 dark:border-zinc-800 pb-4">
           Poster Information & Layout Preferences
@@ -196,17 +245,64 @@ export const PosterForm: React.FC<PosterFormProps> = ({
             />
           </div>
 
-          {/* Photo Upload (Optional) */}
-          <div className="sm:col-span-2 space-y-1.5">
-            <label className="block text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-              Upload Leader Photo <span className="text-xs text-zinc-500 font-normal">(Optional)</span>
-            </label>
+          {/* Photo Upload (Optional, up to 3) */}
+          <div className="sm:col-span-2 space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="block text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                Upload Leader Photos <span className="text-xs text-zinc-500 font-normal">(Optional, up to 3)</span>
+              </label>
+              <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
+                {selectedFiles.length}/3 selected
+              </span>
+            </div>
             <input
               type="file"
-              accept="image/*"
+              accept="image/jpeg,image/png,image/webp"
+              multiple
               onChange={handleFileChange}
               className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-xl bg-white dark:bg-zinc-800 text-sm text-zinc-600 dark:text-zinc-300 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-emerald-50 file:text-emerald-700 dark:file:bg-emerald-950 dark:file:text-emerald-300 hover:file:bg-emerald-100 cursor-pointer"
             />
+            
+            {/* Selected Photo Thumbnails */}
+            {filePreviews.length > 0 && (
+              <div className="flex flex-wrap gap-3 pt-2">
+                {filePreviews.map((preview, index) => (
+                  <div
+                    key={index}
+                    className="relative group w-20 h-20 rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-800 shadow-sm"
+                  >
+                    <img
+                      src={preview.url}
+                      alt={`Selected photo ${index + 1}`}
+                      className="w-full h-full object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveFile(index)}
+                      className="absolute top-1 right-1 p-1 bg-red-600 hover:bg-red-700 text-white rounded-full shadow-md transition-colors focus:outline-none"
+                      title="Remove photo"
+                    >
+                      <svg
+                        className="w-3 h-3"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2.5"
+                          d="M6 18L18 6M6 6l12 12"
+                        />
+                      </svg>
+                    </button>
+                    <span className="absolute bottom-1 left-1 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded font-mono">
+                      #{index + 1}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -255,33 +351,33 @@ export const PosterForm: React.FC<PosterFormProps> = ({
 
       {/* Generated Result Container */}
       {generatedResult && (
-        <div className="bg-white dark:bg-zinc-900 p-6 sm:p-8 rounded-2xl border border-emerald-200 dark:border-emerald-900 shadow-md space-y-6">
-          <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-4">
-            <div>
-              <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
+        <div className="bg-white dark:bg-zinc-900 p-4 sm:p-8 rounded-2xl border border-emerald-200 dark:border-emerald-900 shadow-md space-y-6">
+          <div className="flex items-center justify-between gap-2 border-b border-zinc-100 dark:border-zinc-800 pb-4">
+            <div className="min-w-0 flex-1">
+              <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-100 truncate">
                 Generated Poster Result
               </h3>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
                 Poster ID: {generatedResult.posterId}
               </p>
             </div>
-            <span className="bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 text-xs font-semibold px-3 py-1 rounded-full">
+            <span className="bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 text-xs font-semibold px-3 py-1 rounded-full shrink-0">
               Status: Ready
             </span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
             {/* Generated Image Preview */}
-            <div className="flex justify-center bg-zinc-100 dark:bg-zinc-950 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800">
+            <div className="flex justify-center bg-zinc-100 dark:bg-zinc-950 p-3 sm:p-4 rounded-xl border border-zinc-200 dark:border-zinc-800">
               <img
                 src={generatedResult.generatedImageUrl}
                 alt="Generated Political Poster"
-                className="max-h-[600px] w-auto object-contain rounded-lg shadow-lg"
+                className="max-h-[500px] sm:max-h-[600px] max-w-full w-auto object-contain rounded-lg shadow-lg"
               />
             </div>
 
             {/* Layout Specs */}
-            <div className="space-y-4 bg-zinc-50 dark:bg-zinc-800/50 p-5 rounded-xl border border-zinc-200 dark:border-zinc-800">
+            <div className="space-y-4 bg-zinc-50 dark:bg-zinc-800/50 p-4 sm:p-5 rounded-xl border border-zinc-200 dark:border-zinc-800">
               <h4 className="font-semibold text-sm text-zinc-900 dark:text-zinc-100">
                 AI Layout Parameters
               </h4>

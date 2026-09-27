@@ -19,9 +19,11 @@ export interface IPoster {
   party: string;
   location: string;
   originalImageUrl?: string;
+  originalImageUrls?: string[];
   generatedImageUrl: string;
   generatedImagePublicId: string;
   layout: IPosterLayout;
+  regenerationCount?: number;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -111,6 +113,12 @@ const PosterSchema: Schema = new Schema<IPosterDocument>(
       type: String,
       trim: true,
     },
+    originalImageUrls: [
+      {
+        type: String,
+        trim: true,
+      },
+    ],
     generatedImageUrl: {
       type: String,
       required: [true, 'Generated image URL is required'],
@@ -124,6 +132,11 @@ const PosterSchema: Schema = new Schema<IPosterDocument>(
     layout: {
       type: PosterLayoutSchema,
       required: [true, 'Layout configuration is required'],
+    },
+    regenerationCount: {
+      type: Number,
+      default: 0,
+      min: 0,
     },
   },
   {

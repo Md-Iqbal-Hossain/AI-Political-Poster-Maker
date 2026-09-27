@@ -13,6 +13,7 @@ export interface PosterData {
   location?: string;
   occasion?: string;
   photoUrl?: string;
+  photoUrls?: string[];
   layoutConfig?: Record<string, any>;
 }
 
@@ -42,7 +43,17 @@ export const generatePosterHtml = (
   const party = data.party || 'বাংলাদেশ ছাত্র ফ্রন্ট';
   const location = data.location || 'ঢাকা উত্তর শাখা';
   const occasion = data.occasion || 'বিজয় দিবস';
-  const photoUrl = data.photoUrl || '';
+
+  const rawPhotoUrls = Array.isArray(data.photoUrls)
+    ? data.photoUrls.filter((url) => typeof url === 'string' && url.trim().length > 0)
+    : [];
+
+  const photoUrlsList =
+    rawPhotoUrls.length > 0
+      ? rawPhotoUrls
+      : data.photoUrl?.trim()
+      ? [data.photoUrl.trim()]
+      : [];
 
   const layoutConfig = data.layoutConfig || {};
 
@@ -117,6 +128,50 @@ export const generatePosterHtml = (
   const renderTopHeadline = headlinePlacement === 'top-banner' ? headlineHtml : '';
   const renderContentHeadline = headlinePlacement !== 'top-banner' ? headlineHtml : '';
 
+  // Render photo section HTML dynamically based on photoUrlsList count (0, 1, 2, or 3)
+  let photoSectionHtml = '';
+
+  if (photoUrlsList.length === 0) {
+    photoSectionHtml = `
+    <div class="photo-section single-photo">
+      <div class="photo-frame">
+        <div class="placeholder-avatar">👤</div>
+      </div>
+    </div>`;
+  } else if (photoUrlsList.length === 1) {
+    photoSectionHtml = `
+    <div class="photo-section single-photo">
+      <div class="photo-frame">
+        <img src="${escapeHtml(photoUrlsList[0])}" alt="Leader Photo" />
+      </div>
+    </div>`;
+  } else if (photoUrlsList.length === 2) {
+    photoSectionHtml = `
+    <div class="photo-section two-photos">
+      <div class="photo-frame">
+        <img src="${escapeHtml(photoUrlsList[0])}" alt="Leader Photo 1" />
+      </div>
+      <div class="photo-frame">
+        <img src="${escapeHtml(photoUrlsList[1])}" alt="Leader Photo 2" />
+      </div>
+    </div>`;
+  } else {
+    const photosToRender = photoUrlsList.slice(0, 3);
+    const framesHtml = photosToRender
+      .map(
+        (url, idx) => `
+      <div class="photo-frame">
+        <img src="${escapeHtml(url)}" alt="Leader Photo ${idx + 1}" />
+      </div>`
+      )
+      .join('');
+
+    photoSectionHtml = `
+    <div class="photo-section three-photos">
+      ${framesHtml}
+    </div>`;
+  }
+
   return `<!DOCTYPE html>
 <html lang="bn">
 <head>
@@ -184,10 +239,39 @@ export const generatePosterHtml = (
       display: flex;
       justify-content: center;
       align-items: center;
+      position: relative;
+    }
+
+    .photo-section.single-photo {
       margin: ${photoMargin};
       width: ${photoWidth};
       height: ${photoHeight};
-      position: relative;
+    }
+
+    .photo-section.two-photos {
+      width: 100%;
+      height: 440px;
+      margin: 20px auto;
+      gap: 36px;
+    }
+
+    .photo-section.two-photos .photo-frame {
+      width: 400px;
+      height: 400px;
+      border: 10px solid ${accentColor};
+    }
+
+    .photo-section.three-photos {
+      width: 100%;
+      height: 360px;
+      margin: 20px auto;
+      gap: 24px;
+    }
+
+    .photo-section.three-photos .photo-frame {
+      width: 310px;
+      height: 310px;
+      border: 8px solid ${accentColor};
     }
 
     .photo-frame {
@@ -201,6 +285,7 @@ export const generatePosterHtml = (
       display: flex;
       justify-content: center;
       align-items: center;
+      flex-shrink: 0;
     }
 
     .photo-frame img {
@@ -288,11 +373,7 @@ export const generatePosterHtml = (
     ${renderTopHeadline}
   </div>
 
-  <div class="photo-section">
-    <div class="photo-frame">
-      ${photoUrl ? `<img src="${escapeHtml(photoUrl)}" alt="Leader Photo" />` : '<div class="placeholder-avatar">👤</div>'}
-    </div>
-  </div>
+  ${photoSectionHtml}
 
   <div class="content-section">
     ${renderContentHeadline}
