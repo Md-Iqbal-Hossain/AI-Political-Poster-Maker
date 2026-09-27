@@ -42,8 +42,11 @@ export interface CreatePosterResult {
 export const createPoster = async (
   input: CreatePosterInput
 ): Promise<CreatePosterResult> => {
-  // 1. Load requested Template from DB
-  const template = await Template.findById(input.templateId);
+  // 1. Load requested Template from DB (must be active)
+  const template = await Template.findOne({
+    _id: input.templateId,
+    isActive: true,
+  });
   if (!template) {
     throw new Error(`Template not found with ID: ${input.templateId}`);
   }

@@ -8,7 +8,7 @@ import { Poster } from '../models/poster.model.js';
 import { generateToken } from '../utils/jwt.js';
 
 async function runPosterHistoryApiTest() {
-  console.log('=== TEST: Poster History API Endpoint (GET /api/posters) ===');
+  console.log('=== TEST: Poster History API Endpoint Pagination & User Isolation (GET /api/posters) ===');
 
   let mongoServer: MongoMemoryServer | null = null;
 
@@ -19,7 +19,7 @@ async function runPosterHistoryApiTest() {
     await mongoose.connect(mongoUri);
     console.log('✓ In-memory MongoDB connected successfully.');
 
-    // 2. Create User A and User B
+    // 2. Create User A, User B, and User C (User C has no posters)
     const userA = await User.create({
       name: 'User Alpha',
       email: 'usera@test.com',
@@ -31,6 +31,13 @@ async function runPosterHistoryApiTest() {
       name: 'User Beta',
       email: 'userb@test.com',
       passwordHash: 'hash_b',
+      role: 'user',
+    });
+
+    const userC = await User.create({
+      name: 'User Gamma',
+      email: 'userc@test.com',
+      passwordHash: 'hash_c',
       role: 'user',
     });
 
@@ -46,6 +53,12 @@ async function runPosterHistoryApiTest() {
       role: userB.role,
     });
 
+    const tokenC = generateToken({
+      userId: userC._id.toString(),
+      email: userC.email,
+      role: userC.role,
+    });
+
     // 3. Create dummy template
     const template = await Template.create({
       name: 'Victory Poster',
@@ -57,7 +70,7 @@ async function runPosterHistoryApiTest() {
     // 4. Create 3 posters for User A (at different timestamps to test newest-first sorting)
     const baseDate = Date.now();
     
-    const posterA1 = await Poster.create({
+    await Poster.create({
       userId: userA._id,
       templateId: template._id,
       occasion: 'বিজয় দিবস',
@@ -78,7 +91,7 @@ async function runPosterHistoryApiTest() {
       createdAt: new Date(baseDate - 10000), // 10s ago
     });
 
-    const posterA2 = await Poster.create({
+    await Poster.create({
       userId: userA._id,
       templateId: template._id,
       occasion: 'বিজয় দিবস',
@@ -99,7 +112,7 @@ async function runPosterHistoryApiTest() {
       createdAt: new Date(baseDate - 5000), // 5s ago
     });
 
-    const posterA3 = await Poster.create({
+    await Poster.create({
       userId: userA._id,
       templateId: template._id,
       occasion: 'বিজয় দিবস',
@@ -142,7 +155,7 @@ async function runPosterHistoryApiTest() {
       createdAt: new Date(baseDate),
     });
 
-    console.log('✓ Test Database seeded with User A (3 posters) and User B (1 poster).');
+    console.log('✓ Test Database seeded with User A (3 posters), User B (1 poster), and User C (0 posters).');
 
     // TEST 1: Unauthenticated request -> 401
     console.log('\n--- 1. Testing Unauthenticated GET /api/posters ---');
@@ -153,23 +166,25 @@ async function runPosterHistoryApiTest() {
     }
     console.log('✓ 401 Unauthorized check passed.');
 
-    // TEST 2: User Isolation - User A gets ONLY User A's posters (3 total)
-    console.log('\n--- 2. Testing User Isolation (User A) ---');
+    // TEST 2: Default Pagination & User Isolation (User A)
+    console.log('\n--- 2. Testing Default Pagination & User Isolation (User A) ---');
     const res2 = await request(app)
       .get('/api/posters')
       .set('Authorization', `Bearer ${tokenA}`);
 
     console.log('Status Code:', res2.status);
-    console.log('Total Posters Count:', res2.body.pagination?.total);
-    console.log('Headlines:', res2.body.data.map((p: any) => p.headline));
+    console.log('Pagination Metadata:', res2.body.pagination);
 
     if (
       res2.status !== 200 ||
       res2.body.success !== true ||
+      res2.body.pagination.page !== 1 ||
+      res2.body.pagination.limit !== 10 ||
       res2.body.pagination.total !== 3 ||
+      res2.body.pagination.totalPages !== 1 ||
       res2.body.data.length !== 3
     ) {
-      throw new Error('User A did not get exactly 3 posters!');
+      throw new Error('User A default pagination response structure incorrect!');
     }
 
     // Verify User B's poster is NOT returned to User A
@@ -177,7 +192,7 @@ async function runPosterHistoryApiTest() {
     if (hasPosterB) {
       throw new Error('User B poster was leaked to User A!');
     }
-    console.log('✓ User Isolation check passed (User B poster not returned to User A).');
+    console.log('✓ Default pagination and User Isolation checks passed.');
 
     // TEST 3: Newest First Ordering
     console.log('\n--- 3. Testing Newest-First Ordering ---');
@@ -193,14 +208,11 @@ async function runPosterHistoryApiTest() {
     }
     console.log('✓ Newest-First Ordering check passed.');
 
-    // TEST 4: Pagination (Limit=2, Page=1 and Page=2)
-    console.log('\n--- 4. Testing Pagination (limit=2) ---');
+    // TEST 4: Valid Custom Pagination (limit=2, page=1 and page=2)
+    console.log('\n--- 4. Testing Valid Custom Pagination (page=1&limit=2) ---');
     const resPage1 = await request(app)
       .get('/api/posters?page=1&limit=2')
       .set('Authorization', `Bearer ${tokenA}`);
-
-    console.log('Page 1 items count:', resPage1.body.data.length);
-    console.log('Page 1 pagination:', resPage1.body.pagination);
 
     if (
       resPage1.body.pagination.page !== 1 ||
@@ -216,54 +228,111 @@ async function runPosterHistoryApiTest() {
       .get('/api/posters?page=2&limit=2')
       .set('Authorization', `Bearer ${tokenA}`);
 
-    console.log('Page 2 items count:', resPage2.body.data.length);
-    console.log('Page 2 item headline:', resPage2.body.data[0]?.headline);
-
     if (resPage2.body.data.length !== 1 || resPage2.body.data[0].headline !== 'পোস্টার ১ - পুরোনো') {
       throw new Error('Page 2 pagination data incorrect!');
     }
-    console.log('✓ Pagination check passed.');
+    console.log('✓ Custom Pagination check passed.');
 
-    // TEST 5: Invalid Pagination Values -> 400 Bad Request
-    console.log('\n--- 5. Testing Invalid Pagination Values (limit=100, page=0, page=abc) ---');
-    
-    const resInv1 = await request(app)
-      .get('/api/posters?limit=100')
+    // TEST 5: Maximum Limit of 50 Boundary
+    console.log('\n--- 5. Testing Maximum Limit (limit=50 accepted, limit=51 rejected) ---');
+    const resMaxValid = await request(app)
+      .get('/api/posters?limit=50')
       .set('Authorization', `Bearer ${tokenA}`);
-    console.log('limit=100 Status:', resInv1.status);
-    if (resInv1.status !== 400) {
-      throw new Error('limit=100 (exceeding max 50) was not rejected with 400!');
+    console.log('limit=50 Status Code:', resMaxValid.status);
+    if (resMaxValid.status !== 200 || resMaxValid.body.pagination.limit !== 50) {
+      throw new Error('limit=50 (maximum allowed limit) was incorrectly rejected!');
     }
 
-    const resInv2 = await request(app)
-      .get('/api/posters?page=0')
+    const resMaxExceeded = await request(app)
+      .get('/api/posters?limit=51')
       .set('Authorization', `Bearer ${tokenA}`);
-    console.log('page=0 Status:', resInv2.status);
-    if (resInv2.status !== 400) {
-      throw new Error('page=0 was not rejected with 400!');
+    console.log('limit=51 Status Code:', resMaxExceeded.status);
+    if (resMaxExceeded.status !== 400 || resMaxExceeded.body.success !== false) {
+      throw new Error('limit=51 (exceeding maximum 50) was not rejected with 400!');
+    }
+    console.log('✓ Maximum Limit (50) boundary checks passed.');
+
+    // TEST 6: Invalid Pagination Edge Cases -> 400 Bad Request
+    console.log('\n--- 6. Testing Invalid Pagination Edge Cases (-1, -5, 0, decimals, non-numeric) ---');
+
+    // 6a. Negative page: ?page=-1
+    const resNegPage = await request(app)
+      .get('/api/posters?page=-1')
+      .set('Authorization', `Bearer ${tokenA}`);
+    console.log('?page=-1 Status:', resNegPage.status, 'Message:', resNegPage.body.message);
+    if (resNegPage.status !== 400 || resNegPage.body.success !== false) {
+      throw new Error('page=-1 was not rejected with 400!');
     }
 
-    const resInv3 = await request(app)
-      .get('/api/posters?page=invalid')
+    // 6b. Negative limit: ?limit=-5
+    const resNegLimit = await request(app)
+      .get('/api/posters?limit=-5')
       .set('Authorization', `Bearer ${tokenA}`);
-    console.log('page=invalid Status:', resInv3.status);
-    if (resInv3.status !== 400) {
-      throw new Error('page=invalid was not rejected with 400!');
+    console.log('?limit=-5 Status:', resNegLimit.status, 'Message:', resNegLimit.body.message);
+    if (resNegLimit.status !== 400 || resNegLimit.body.success !== false) {
+      throw new Error('limit=-5 was not rejected with 400!');
     }
 
-    console.log('✓ 400 Bad Request check for invalid pagination passed.');
+    // 6c. Zero limit: ?limit=0
+    const resZeroLimit = await request(app)
+      .get('/api/posters?limit=0')
+      .set('Authorization', `Bearer ${tokenA}`);
+    console.log('?limit=0 Status:', resZeroLimit.status, 'Message:', resZeroLimit.body.message);
+    if (resZeroLimit.status !== 400 || resZeroLimit.body.success !== false) {
+      throw new Error('limit=0 was not rejected with 400!');
+    }
 
-    // TEST 6: User B gets ONLY User B's posters (1 total)
-    console.log('\n--- 6. Testing User B Isolation ---');
-    const resUserB = await request(app)
+    // 6d. Decimal page: ?page=1.5
+    const resDecPage = await request(app)
+      .get('/api/posters?page=1.5')
+      .set('Authorization', `Bearer ${tokenA}`);
+    console.log('?page=1.5 Status:', resDecPage.status, 'Message:', resDecPage.body.message);
+    if (resDecPage.status !== 400 || resDecPage.body.success !== false) {
+      throw new Error('page=1.5 was not rejected with 400!');
+    }
+
+    // 6e. Decimal limit: ?limit=2.5
+    const resDecLimit = await request(app)
+      .get('/api/posters?limit=2.5')
+      .set('Authorization', `Bearer ${tokenA}`);
+    console.log('?limit=2.5 Status:', resDecLimit.status, 'Message:', resDecLimit.body.message);
+    if (resDecLimit.status !== 400 || resDecLimit.body.success !== false) {
+      throw new Error('limit=2.5 was not rejected with 400!');
+    }
+
+    // 6f. Non-numeric page: ?page=abc
+    const resAbcPage = await request(app)
+      .get('/api/posters?page=abc')
+      .set('Authorization', `Bearer ${tokenA}`);
+    console.log('?page=abc Status:', resAbcPage.status);
+    if (resAbcPage.status !== 400 || resAbcPage.body.success !== false) {
+      throw new Error('page=abc was not rejected with 400!');
+    }
+
+    console.log('✓ All 400 Bad Request checks passed for invalid pagination edge cases.');
+
+    // TEST 7: Empty History for Authenticated User (User C) -> 200 OK & empty array
+    console.log('\n--- 7. Testing Empty History for Authenticated User (User C) ---');
+    const resUserC = await request(app)
       .get('/api/posters')
-      .set('Authorization', `Bearer ${tokenB}`);
+      .set('Authorization', `Bearer ${tokenC}`);
 
-    console.log('User B total posters:', resUserB.body.pagination.total);
-    if (resUserB.body.pagination.total !== 1 || resUserB.body.data[0]._id !== posterB1._id.toString()) {
-      throw new Error('User B isolation check failed!');
+    console.log('User C Status Code:', resUserC.status);
+    console.log('User C Response Body:', JSON.stringify(resUserC.body, null, 2));
+
+    if (
+      resUserC.status !== 200 ||
+      resUserC.body.success !== true ||
+      !Array.isArray(resUserC.body.data) ||
+      resUserC.body.data.length !== 0 ||
+      resUserC.body.pagination.total !== 0 ||
+      resUserC.body.pagination.totalPages !== 0 ||
+      resUserC.body.pagination.page !== 1 ||
+      resUserC.body.pagination.limit !== 10
+    ) {
+      throw new Error('Empty history response structure for User C was incorrect!');
     }
-    console.log('✓ User B Isolation check passed.');
+    console.log('✓ 200 OK Empty History check passed for User C.');
 
     console.log('\nAll Poster History API endpoint tests passed successfully!');
   } catch (error: any) {
@@ -274,6 +343,7 @@ async function runPosterHistoryApiTest() {
     if (mongoServer) {
       await mongoServer.stop();
     }
+    process.exit(process.exitCode || 0);
   }
 }
 

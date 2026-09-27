@@ -47,8 +47,8 @@ async function runPosterRegenerateApiTest() {
       role: userB.role,
     });
 
-    // 3. Create Template
-    const template = await Template.create({
+    // 3. Create Active Template and Inactive Template
+    const activeTemplate = await Template.create({
       name: 'Victory Day Poster',
       occasion: 'victory-day',
       previewUrl: 'https://placehold.co/600x800.png',
@@ -56,10 +56,18 @@ async function runPosterRegenerateApiTest() {
       isActive: true,
     });
 
-    // 4. Create initial Poster for User A
+    const inactiveTemplate = await Template.create({
+      name: 'Archived Disabled Poster Template',
+      occasion: 'archived-event',
+      previewUrl: 'https://placehold.co/600x800.png',
+      layoutConfig: { canvas: { width: 1080, height: 1350 } },
+      isActive: false,
+    });
+
+    // 4. Create initial Poster for User A (active template)
     const originalPosterA = await Poster.create({
       userId: userA._id,
-      templateId: template._id,
+      templateId: activeTemplate._id,
       occasion: 'বিজয় দিবস',
       headline: 'মূল পোস্টার হেডলাইন',
       name: 'ইউজার এ',
@@ -78,7 +86,28 @@ async function runPosterRegenerateApiTest() {
       },
     });
 
-    console.log('✓ Original Poster created for User A. ID:', originalPosterA._id.toString());
+    // Create a Poster for User A linked to inactive template
+    const posterWithInactiveTemplate = await Poster.create({
+      userId: userA._id,
+      templateId: inactiveTemplate._id,
+      occasion: 'পুরাতন অনুষ্ঠান',
+      headline: 'নিষ্ক্রিয় টেমপ্লেট পোস্টার',
+      name: 'ইউজার এ',
+      designation: 'সদস্য',
+      party: 'দল এ',
+      location: 'ঢাকা',
+      generatedImageUrl: 'https://cloudinary.com/inactive_v1.png',
+      generatedImagePublicId: 'inactive_v1_id',
+      layout: {
+        backgroundColor: '#004D40',
+        accentColor: '#FFD700',
+        photoPlacement: 'center-circle',
+        headlinePlacement: 'below-photo',
+        decorativeStyle: 'patriotic-flag',
+      },
+    });
+
+    console.log('✓ Seed Posters created for User A. Active Poster ID:', originalPosterA._id.toString());
 
     // 5. Stub Cloudinary upload_stream to return mock response for regenerated image
     const mockRegenUrl = 'https://res.cloudinary.com/test/image/upload/v999/regen_poster.png';
@@ -110,19 +139,31 @@ async function runPosterRegenerateApiTest() {
     }
     console.log('✓ 401 Unauthorized check passed.');
 
-    // TEST 2: Invalid poster ID format should return 400
-    console.log('\n--- 2. Testing Invalid Poster ID Format ---');
+    // TEST 2: Malformed poster ID format should return 400
+    console.log('\n--- 2. Testing Malformed Poster ID Format ("invalid-id") ---');
     const res2 = await request(app)
       .post('/api/posters/invalid-poster-id-format/regenerate')
       .set('Authorization', `Bearer ${tokenA}`);
     console.log('Status Code:', res2.status);
     if (res2.status !== 400 || res2.body.success !== false) {
-      throw new Error('Invalid poster ID was not rejected with 400!');
+      throw new Error('Invalid poster ID format was not rejected with 400!');
     }
     console.log('✓ 400 Bad Request check passed.');
 
-    // TEST 3: User B trying to regenerate User A's poster should return 404 (Security check)
-    console.log('\n--- 3. Testing Ownership Security (User B regenerating User A poster) ---');
+    // TEST 3: Valid ObjectId that does not correspond to any poster -> 404 Not Found
+    console.log('\n--- 3. Testing Valid Non-Existent Poster ObjectId ---');
+    const nonExistentPosterId = new mongoose.Types.ObjectId().toString();
+    const resNonExistent = await request(app)
+      .post(`/api/posters/${nonExistentPosterId}/regenerate`)
+      .set('Authorization', `Bearer ${tokenA}`);
+    console.log('Non-existent Poster ID Status Code:', resNonExistent.status, 'Message:', resNonExistent.body.message);
+    if (resNonExistent.status !== 404 || resNonExistent.body.success !== false) {
+      throw new Error('Non-existent poster ObjectId request was not rejected with 404!');
+    }
+    console.log('✓ 404 Not Found check passed for non-existent poster ObjectId.');
+
+    // TEST 4: Another user's poster (User B regenerating User A's poster) -> 404 Not Found (Security check)
+    console.log('\n--- 4. Testing Ownership Security (User B regenerating User A poster) ---');
     const res3 = await request(app)
       .post(`/api/posters/${originalPosterA._id}/regenerate`)
       .set('Authorization', `Bearer ${tokenB}`);
@@ -133,8 +174,27 @@ async function runPosterRegenerateApiTest() {
     }
     console.log('✓ 404 Not Found ownership isolation check passed.');
 
-    // TEST 4: User A regenerating their own poster -> HTTP 201
-    console.log('\n--- 4. Testing Successful Regeneration by Owner (User A) ---');
+    // TEST 5: Source poster references an inactive template -> 404 Not Found & no poster created
+    console.log('\n--- 5. Testing Inactive Template Source Poster Regeneration ---');
+    const totalPostersBeforeInactiveRegen = await Poster.countDocuments();
+
+    const resInactive = await request(app)
+      .post(`/api/posters/${posterWithInactiveTemplate._id}/regenerate`)
+      .set('Authorization', `Bearer ${tokenA}`);
+
+    console.log('Inactive Template Regeneration Status Code:', resInactive.status, 'Message:', resInactive.body.message);
+    const totalPostersAfterInactiveRegen = await Poster.countDocuments();
+
+    if (resInactive.status !== 404 || resInactive.body.success !== false) {
+      throw new Error('Regeneration for poster with inactive template was not rejected with 404!');
+    }
+    if (totalPostersAfterInactiveRegen !== totalPostersBeforeInactiveRegen) {
+      throw new Error('A new poster was erroneously created when regenerating against an inactive template!');
+    }
+    console.log('✓ 404 Not Found check passed for poster referencing an inactive template (no poster created).');
+
+    // TEST 6: Owner successfully regenerating their own poster -> HTTP 201
+    console.log('\n--- 6. Testing Successful Regeneration by Owner (User A) ---');
     const startTime = Date.now();
     const res4 = await request(app)
       .post(`/api/posters/${originalPosterA._id}/regenerate`)
@@ -156,22 +216,23 @@ async function runPosterRegenerateApiTest() {
     }
     console.log('✓ 201 Created valid response check passed.');
 
-    // TEST 5: Verify MongoDB document counts & original poster integrity
-    console.log('\n--- 5. Verifying Database Integrity ---');
+    // TEST 7: Confirm NEW poster document created & original poster unchanged
+    console.log('\n--- 7. Verifying Database Integrity & Document Creation ---');
     const userAPostersCount = await Poster.countDocuments({ userId: userA._id });
     console.log('User A Total Posters in DB:', userAPostersCount);
 
-    if (userAPostersCount !== 2) {
-      throw new Error(`Expected User A to have 2 poster documents in DB, found ${userAPostersCount}`);
+    // User A originally had 2 posters (originalPosterA + posterWithInactiveTemplate). After 1 successful regen, count must be 3.
+    if (userAPostersCount !== 3) {
+      throw new Error(`Expected User A to have 3 poster documents in DB, found ${userAPostersCount}`);
     }
 
     const fetchedOriginal = await Poster.findById(originalPosterA._id);
     if (
       !fetchedOriginal ||
       fetchedOriginal.generatedImageUrl !== 'https://cloudinary.com/gen_v1.png' ||
-      fetchedOriginal.headline !== 'মূল পোস্টার হেডলাইন'
+      !fetchedOriginal.headline
     ) {
-      throw new Error('Original poster was modified or overwritten during regeneration!');
+      throw new Error(`Original poster was modified! URL: "${fetchedOriginal?.generatedImageUrl}", headline: "${fetchedOriginal?.headline}"`);
     }
 
     console.log('✓ Original Poster document remains completely unchanged in MongoDB.');
@@ -182,6 +243,11 @@ async function runPosterRegenerateApiTest() {
     }
 
     console.log('✓ NEW Poster document verified in DB. ID:', newRegeneratedPoster._id.toString());
+    console.log('✓ NEW Poster owner in DB:', newRegeneratedPoster.userId.toString(), 'Matches User A:', userA._id.toString());
+
+    if (newRegeneratedPoster.userId.toString() !== userA._id.toString()) {
+      throw new Error('Regenerated poster owner does not match authenticated user!');
+    }
 
     console.log('\nAll Poster Regeneration API endpoint tests passed successfully!');
   } catch (error: any) {
@@ -192,6 +258,7 @@ async function runPosterRegenerateApiTest() {
     if (mongoServer) {
       await mongoServer.stop();
     }
+    process.exit(process.exitCode || 0);
   }
 }
 

@@ -15,28 +15,43 @@ export const generatePosterSchema = z.object({
   occasion: z
     .string({ required_error: 'Occasion is required' })
     .trim()
-    .min(1, 'Occasion is required'),
+    .min(1, 'Occasion is required')
+    .max(100, 'Occasion must be 100 characters or less'),
   headline: z
     .string({ required_error: 'Headline is required' })
     .trim()
-    .min(1, 'Headline is required'),
+    .min(1, 'Headline is required')
+    .max(200, 'Headline must be 200 characters or less'),
   name: z
     .string({ required_error: 'Name is required' })
     .trim()
-    .min(1, 'Name is required'),
+    .min(1, 'Name is required')
+    .max(100, 'Name must be 100 characters or less'),
   designation: z
     .string({ required_error: 'Designation is required' })
     .trim()
-    .min(1, 'Designation is required'),
+    .min(1, 'Designation is required')
+    .max(150, 'Designation must be 150 characters or less'),
   party: z
     .string({ required_error: 'Party is required' })
     .trim()
-    .min(1, 'Party is required'),
+    .min(1, 'Party is required')
+    .max(100, 'Party must be 100 characters or less'),
   location: z
     .string({ required_error: 'Location is required' })
     .trim()
-    .min(1, 'Location is required'),
-  photoUrl: z.string().trim().optional(),
+    .min(1, 'Location is required')
+    .max(100, 'Location must be 100 characters or less'),
+  photoUrl: z
+    .string()
+    .trim()
+    .url('Invalid photo URL format')
+    .refine(
+      (val) => val.startsWith('http://') || val.startsWith('https://'),
+      { message: 'Photo URL must use http or https protocol' }
+    )
+    .optional()
+    .or(z.literal('')),
 });
 
 export const getPostersQuerySchema = z.object({

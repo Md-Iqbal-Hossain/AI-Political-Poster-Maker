@@ -1,4 +1,9 @@
 import puppeteer, { Browser } from 'puppeteer';
+import {
+  PHOTO_PLACEMENTS,
+  HEADLINE_PLACEMENTS,
+  DECORATIVE_STYLES,
+} from './gemini-layout.service.js';
 
 export interface PosterData {
   headline?: string;
@@ -10,6 +15,12 @@ export interface PosterData {
   photoUrl?: string;
   layoutConfig?: Record<string, any>;
 }
+
+const HEX_COLOR_REGEX = /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/;
+
+const isValidHexColor = (val?: any): boolean => {
+  return typeof val === 'string' && HEX_COLOR_REGEX.test(val.trim());
+};
 
 const escapeHtml = (text: string = ''): string => {
   return text
@@ -35,14 +46,20 @@ export const generatePosterHtml = (
 
   const layoutConfig = data.layoutConfig || {};
 
-  // 1. backgroundColor property
-  const backgroundColor = layoutConfig.backgroundColor || '#004D40';
+  // 1. backgroundColor property (Strict HEX validation with safe fallback)
+  const rawBgColor = layoutConfig.backgroundColor;
+  const backgroundColor = isValidHexColor(rawBgColor) ? rawBgColor.trim() : '#004D40';
 
-  // 2. accentColor property
-  const accentColor = layoutConfig.accentColor || '#FFD700';
+  // 2. accentColor property (Strict HEX validation with safe fallback)
+  const rawAccentColor = layoutConfig.accentColor;
+  const accentColor = isValidHexColor(rawAccentColor) ? rawAccentColor.trim() : '#FFD700';
 
-  // 3. photoPlacement property
-  const photoPlacement = layoutConfig.photoPlacement || 'center-circle';
+  // 3. photoPlacement property (Strict Enum validation with safe fallback)
+  const rawPhotoPlacement = layoutConfig.photoPlacement;
+  const photoPlacement = (PHOTO_PLACEMENTS as readonly string[]).includes(rawPhotoPlacement)
+    ? rawPhotoPlacement
+    : 'center-circle';
+
   let photoWidth = '650px';
   let photoHeight = '650px';
   let photoMargin = '30px auto';
@@ -64,11 +81,18 @@ export const generatePosterHtml = (
     photoMargin = '20px 80px 20px auto';
   }
 
-  // 4. headlinePlacement property
-  const headlinePlacement = layoutConfig.headlinePlacement || 'below-photo';
+  // 4. headlinePlacement property (Strict Enum validation with safe fallback)
+  const rawHeadlinePlacement = layoutConfig.headlinePlacement;
+  const headlinePlacement = (HEADLINE_PLACEMENTS as readonly string[]).includes(rawHeadlinePlacement)
+    ? rawHeadlinePlacement
+    : 'below-photo';
 
-  // 5. decorativeStyle property
-  const decorativeStyle = layoutConfig.decorativeStyle || 'patriotic-flag';
+  // 5. decorativeStyle property (Strict Enum validation with safe fallback)
+  const rawDecorativeStyle = layoutConfig.decorativeStyle;
+  const decorativeStyle = (DECORATIVE_STYLES as readonly string[]).includes(rawDecorativeStyle)
+    ? rawDecorativeStyle
+    : 'patriotic-flag';
+
   let badgeBg = '#D32F2F';
   let footerBg = 'linear-gradient(90deg, #D32F2F 0%, #B71C1C 100%)';
 
