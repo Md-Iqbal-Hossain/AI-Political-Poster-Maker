@@ -1,6 +1,7 @@
 {
   "name": "ai-political-poster-maker-server",
   "version": "1.0.0",
+  "type": "module",
   "description": "Express TypeScript Backend for AI Political Poster Maker",
   "main": "dist/index.js",
   "scripts": {
