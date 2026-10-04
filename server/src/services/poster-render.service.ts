@@ -1,4 +1,5 @@
-import puppeteer, { Browser } from 'puppeteer';
+import puppeteer, { Browser } from 'puppeteer-core';
+import chromium from '@sparticuz/chromium';
 import {
   PHOTO_PLACEMENTS,
   HEADLINE_PLACEMENTS,
@@ -67,9 +68,11 @@ export const generatePosterHtml = (
 
   // 3. photoPlacement property (Strict Enum validation with safe fallback)
   const rawPhotoPlacement = layoutConfig.photoPlacement;
-  const photoPlacement = (PHOTO_PLACEMENTS as readonly string[]).includes(rawPhotoPlacement)
-    ? rawPhotoPlacement
-    : 'center-circle';
+  const photoPlacement =
+    typeof rawPhotoPlacement === 'string' &&
+    (PHOTO_PLACEMENTS as readonly string[]).includes(rawPhotoPlacement)
+      ? rawPhotoPlacement
+      : 'center-circle';
 
   let photoWidth = '650px';
   let photoHeight = '650px';
@@ -94,15 +97,19 @@ export const generatePosterHtml = (
 
   // 4. headlinePlacement property (Strict Enum validation with safe fallback)
   const rawHeadlinePlacement = layoutConfig.headlinePlacement;
-  const headlinePlacement = (HEADLINE_PLACEMENTS as readonly string[]).includes(rawHeadlinePlacement)
-    ? rawHeadlinePlacement
-    : 'below-photo';
+  const headlinePlacement =
+    typeof rawHeadlinePlacement === 'string' &&
+    (HEADLINE_PLACEMENTS as readonly string[]).includes(rawHeadlinePlacement)
+      ? rawHeadlinePlacement
+      : 'below-photo';
 
   // 5. decorativeStyle property (Strict Enum validation with safe fallback)
   const rawDecorativeStyle = layoutConfig.decorativeStyle;
-  const decorativeStyle = (DECORATIVE_STYLES as readonly string[]).includes(rawDecorativeStyle)
-    ? rawDecorativeStyle
-    : 'patriotic-flag';
+  const decorativeStyle =
+    typeof rawDecorativeStyle === 'string' &&
+    (DECORATIVE_STYLES as readonly string[]).includes(rawDecorativeStyle)
+      ? rawDecorativeStyle
+      : 'patriotic-flag';
 
   let badgeBg = '#D32F2F';
   let footerBg = 'linear-gradient(90deg, #D32F2F 0%, #B71C1C 100%)';
@@ -397,14 +404,16 @@ export const renderPosterToBuffer = async (data: PosterData): Promise<Buffer> =>
     const htmlContent = generatePosterHtml(data, width, height);
 
     browser = await puppeteer.launch({
-      headless: true,
       args: [
+        ...chromium.args,
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
         '--disable-web-security',
         '--font-render-hinting=none',
       ],
+      executablePath: await chromium.executablePath(),
+      headless: true,
     });
 
     const page = await browser.newPage();

@@ -1,4 +1,5 @@
-import puppeteer from 'puppeteer';
+import puppeteer, { Browser } from 'puppeteer-core';
+import chromium from '@sparticuz/chromium';
 import { generatePosterHtml, renderPosterToBuffer, PosterData } from '../services/poster-render.service.js';
 
 async function runPosterRendererXssTest() {
@@ -43,16 +44,24 @@ async function runPosterRendererXssTest() {
     // 2. DOM Parsing via Puppeteer
     console.log('\n--- 2. Verifying DOM Element Rendering via Puppeteer ---');
     const browser = await puppeteer.launch({
+      args: [
+        ...chromium.args,
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-web-security',
+        '--font-render-hinting=none',
+      ],
+      executablePath: await chromium.executablePath(),
       headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
     });
 
     const page = await browser.newPage();
     await page.setContent(htmlOutput, { waitUntil: 'load' });
 
     // Verify that NO executable/injected element tags exist inside user content containers
-    const injectedScriptCount = await page.$$eval('script', (scripts) =>
-      scripts.filter((s) => s.textContent?.includes('name-xss')).length
+    const injectedScriptCount = await page.$$eval('script', (scripts: any[]) =>
+      scripts.filter((s: any) => s.textContent?.includes('name-xss')).length
     );
     const injectedImgInName = await page.$('.leader-name img');
     const injectedIframeInLocation = await page.$('.location-title iframe');
